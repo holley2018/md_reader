@@ -5,6 +5,7 @@
   "description": "Universal markdown reader with Math/PDF/Office support",
   "scripts": {
     "dev": "npx serve public -l 3000 --no-clipboard --no-request-logging",
+    "tauri": "npx tauri",
     "tauri:dev": "npx tauri dev",
     "tauri:build": "npx tauri build",
     "cap:init": "npx cap init",
