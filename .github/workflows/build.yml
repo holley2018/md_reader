@@ -2,6 +2,7 @@ name: Build
 on:
   push:
     branches: [main, master]
+    tags: ['v*']
   pull_request:
     branches: [main, master]
   workflow_dispatch:
@@ -88,3 +89,33 @@ jobs:
           path: |
             src-tauri/target/release/bundle/msi/
             src-tauri/target/release/bundle/nsis/
+
+  release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        run: echo "APP_VERSION=$(cat src-tauri/tauri.conf.json | jq -r '.version')" >> $GITHUB_ENV
+
+      - uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION }}
+          name: 通用阅读器 v${{ env.APP_VERSION }}
+          body: |
+            ## 通用阅读器 v${{ env.APP_VERSION }}
+
+            ### 文件说明
+            - **linux-bundles**: Linux AppImage + deb 安装包
+            - **macos-bundle**: macOS DMG 安装包
+            - **windows-bundles**: Windows MSI + NSIS 安装包
+          draft: ${{ github.event_name == 'workflow_dispatch' }}
+          files: |
+            */*
