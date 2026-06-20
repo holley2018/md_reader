@@ -118,4 +118,6 @@ jobs:
             - **windows-bundles**: Windows MSI + NSIS 安装包
           draft: ${{ github.event_name == 'workflow_dispatch' }}
           files: |
-            */*
+            linux-bundles/**/*
+            macos-bundle/**/*
+            windows-bundles/**/*
