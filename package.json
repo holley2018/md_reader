@@ -1,0 +1,28 @@
+{
+  "name": "md-reader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Universal markdown reader with Math/PDF/Office support",
+  "scripts": {
+    "dev": "npx serve public -l 3000 --no-clipboard --no-request-logging",
+    "tauri:dev": "npx tauri dev",
+    "tauri:build": "npx tauri build",
+    "cap:init": "npx cap init",
+    "cap:sync": "npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "cap:copy": "npx cap copy"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@capacitor/cli": "^6.0.0"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-fs": "^2.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/filesystem": "^6.0.0",
+    "@capacitor/dialog": "^6.0.0"
+  }
+}

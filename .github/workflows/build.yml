@@ -1,0 +1,78 @@
+name: Build
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bundle: AppImage,deb
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            bundle: dmg
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundle: msi,nsis
+
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Install Linux system deps
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            javascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Build with Tauri
+        uses: tauri-apps/tauri-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: '通用阅读器 v__VERSION__'
+          releaseBody: '请在下方的 Assets 中选择对应平台的安装包下载。'
+          releaseDraft: true
+          prerelease: false
+          bundleIdentifier: com.reader.md
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundle }}
