@@ -40,6 +40,7 @@ jobs:
       - name: Build Android APK
         run: |
           cd android
+          chmod +x gradlew
           ./gradlew assembleRelease
 
       - name: Upload APK
@@ -63,6 +64,9 @@ jobs:
 
       - name: Install npm deps
         run: npm ci
+
+      - name: Install Capacitor iOS
+        run: npm install @capacitor/ios
 
       - name: Add & Sync iOS platform
         run: |
