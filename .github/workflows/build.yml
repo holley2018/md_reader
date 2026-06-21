@@ -86,9 +86,91 @@ jobs:
           name: ${{ matrix.artifact-name }}
           path: ${{ matrix.artifact-path }}
 
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Sync Android
+        run: npx cap sync android
+
+      - name: Build Android APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: android/app/build/outputs/apk/release/*.apk
+
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Install Capacitor iOS
+        run: npm install @capacitor/ios
+
+      - name: Add & Sync iOS platform
+        run: |
+          npx cap add ios
+          npx cap sync ios
+
+      - name: Build iOS
+        run: |
+          cd ios/App
+          xcodebuild -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath $PWD/build/App.xcarchive \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            archive
+
+      - name: Upload iOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app
+          path: ios/App/build/*.xcarchive
+
   release:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
-    needs: [build]
+    needs: [build, android, ios]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -115,14 +197,20 @@ jobs:
           body: |
             ## 通用阅读器 v${{ env.APP_VERSION }}
 
-            ### 文件说明（适配 银河麒麟/深度UOS 等国产系统）
-            - **linux-amd64-bundles**: x86_64 架构 AppImage + deb（适用于 x86_64 的银河麒麟/深度UOS）
-            - **linux-arm64-bundles**: ARM64 架构 AppImage + deb（适用于 ARM64 的银河麒麟/深度UOS）
+            ### 桌面版（Tauri）
+            - **linux-amd64-bundles**: x86_64 AppImage + deb（适用于 银河麒麟/深度UOS）
+            - **linux-arm64-bundles**: ARM64 AppImage + deb（适用于 ARM64 的 银河麒麟/深度UOS）
             - **macos-bundle**: macOS DMG 安装包
             - **windows-bundles**: Windows MSI + NSIS 安装包
+
+            ### 移动版（Capacitor）
+            - **android-apk**: Android APK（可直接安装）
+            - **ios-app**: iOS 归档（需签名后安装）
           draft: ${{ github.event_name == 'workflow_dispatch' }}
           files: |
             linux-amd64-bundles/**/*
             linux-arm64-bundles/**/*
             macos-bundle/**/*
             windows-bundles/**/*
+            android-apk/**/*
+            ios-app/**/*
