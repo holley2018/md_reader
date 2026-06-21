@@ -118,13 +118,17 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleDebug
+
+      - name: Rename APK
+        run: |
+          mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/通用阅读器.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: android/app/build/outputs/apk/debug/*.apk
 
   ios:
     runs-on: macos-latest
@@ -165,13 +169,13 @@ jobs:
       - name: Package iOS app
         run: |
           cd ios/App/build
-          zip -r ios-app.zip App.xcarchive
+          zip -r 通用阅读器_ios.zip App.xcarchive
 
       - name: Upload iOS app
         uses: actions/upload-artifact@v4
         with:
           name: ios-app
-          path: ios/App/build/ios-app.zip
+          path: ios/App/build/通用阅读器_ios.zip
 
   release:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
@@ -183,7 +187,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Get version
-        run: echo "APP_VERSION=$(cat src-tauri/tauri.conf.json | jq -r '.version')" >> $GITHUB_ENV
+        run: echo "APP_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
       - uses: actions/download-artifact@v4
 
