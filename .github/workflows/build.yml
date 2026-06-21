@@ -162,11 +162,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             archive
 
+      - name: Package iOS app
+        run: |
+          cd ios/App/build
+          zip -r ios-app.zip App.xcarchive
+
       - name: Upload iOS app
         uses: actions/upload-artifact@v4
         with:
           name: ios-app
-          path: ios/App/build/*.xcarchive
+          path: ios/App/build/ios-app.zip
 
   release:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
