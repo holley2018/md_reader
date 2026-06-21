@@ -1475,6 +1475,8 @@ function clearDocument() {
   // Keep file in DB for session restore on next page load — only clear UI
   if (state.fileType === 'html' || state.fileType === 'pdf') {
     if (htmlFrame.src && htmlFrame.src.startsWith('blob:')) URL.revokeObjectURL(htmlFrame.src);
+    var pdfContainer = document.getElementById('pdfRenderContainer');
+    if (pdfContainer) pdfContainer.innerHTML = '';
   }
   if (state._currentImgDataUrl) { URL.revokeObjectURL(state._currentImgDataUrl); state._currentImgDataUrl = ''; }
   state.fileContent = null;
@@ -1915,13 +1917,56 @@ function renderPdf(buf) {
   showActionStrip(false);
   showLoading('正在加载 PDF...');
   showContent();
-  const blob = new Blob([buf], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  htmlFrame.style.display = 'block';
-  htmlFrame.className = 'pdf-container';
-  htmlFrame.src = url;
-  htmlFrame.onload = () => { URL.revokeObjectURL(url); hideLoading(); };
-  htmlFrame.onerror = hideLoading;
+  // Desktop: use iframe (browser built-in PDF viewer)
+  if (typeof FileAPI === 'undefined' || FileAPI.platform !== 'capacitor') {
+    const blob = new Blob([buf], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    htmlFrame.style.display = 'block';
+    htmlFrame.className = 'pdf-container';
+    htmlFrame.src = url;
+    htmlFrame.onload = () => { URL.revokeObjectURL(url); hideLoading(); };
+    htmlFrame.onerror = hideLoading;
+    return;
+  }
+  // Mobile (Capacitor/Android): use pdf.js
+  renderPdfWithPdfJs(buf);
+}
+
+async function renderPdfWithPdfJs(buf) {
+  try {
+    const pdfjsLib = await import('lib/pdf.min.mjs');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.mjs';
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buf) });
+    const pdf = await loadingTask.promise;
+    htmlFrame.style.display = 'none';
+    var container = document.getElementById('pdfRenderContainer');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'pdfRenderContainer';
+      container.className = 'pdf-container';
+      container.style.cssText = 'overflow:auto;padding:8px;';
+      htmlFrame.parentNode.insertBefore(container, htmlFrame);
+    }
+    container.innerHTML = '';
+    container.style.display = 'block';
+    var scale = Math.min(window.innerWidth / 800, 1.5);
+    for (var i = 1; i <= pdf.numPages; i++) {
+      var page = await pdf.getPage(i);
+      var viewport = page.getViewport({ scale: scale });
+      var canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.style.cssText = 'width:100%;height:auto;display:block;margin-bottom:8px;border-radius:4px;';
+      var ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+      container.appendChild(canvas);
+    }
+    hideLoading();
+  } catch (e) {
+    console.error('PDF render error:', e);
+    hideLoading();
+    showToast('PDF 加载失败: ' + e.message);
+  }
 }
 
 // ===== URL browsing =====
@@ -4189,6 +4234,13 @@ function reapplyZoom() {
   if (htmlFrame.style.display === 'block' && (htmlFrame.src || htmlFrame.srcdoc)) {
     htmlFrame.style.transform = z === 1 ? '' : `scale(${z})`;
     htmlFrame.style.transformOrigin = 'top left';
+    return;
+  }
+  // pdf.js canvas container (mobile)
+  var pdfContainer = document.getElementById('pdfRenderContainer');
+  if (pdfContainer && pdfContainer.style.display === 'block') {
+    pdfContainer.style.transform = z === 1 ? '' : `scale(${z})`;
+    pdfContainer.style.transformOrigin = 'top left';
     return;
   }
   // mdContent visible (markdown, text, code, office docs)
