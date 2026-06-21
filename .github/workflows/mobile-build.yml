@@ -63,7 +63,10 @@ jobs:
           cache: npm
 
       - name: Install npm deps
-        run: npm install
+        run: npm ci
+
+      - name: Install Capacitor iOS
+        run: npm install @capacitor/ios
 
       - name: Add & Sync iOS platform
         run: |
