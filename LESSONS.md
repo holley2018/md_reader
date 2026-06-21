@@ -212,3 +212,144 @@ if (!raw || raw.byteLength === 0) {
 7. **常量和变量** — 确认需要修改的标志变量用 `let` 而非 `const`
 8. **状态完整性** — 重置函数应逐个字段清空，最好用独立的初始化函数
 9. **通用 vs 特化** — 优先实现通用方案（如统一导航），再为特殊类型做优化
+
+---
+
+## 10. Cargo 镜像源导致 CI 打包超时
+
+### 现象
+GitHub Actions macOS/Linux runner 打包时 `curl` SSL 连接超时。
+
+### Root Cause
+`src-tauri/.cargo/config.toml` 配置了 `rsproxy.cn`（国内镜像源）作为 crates.io 替代。GitHub runner 位于海外，无法访问该镜像。
+
+### 教训
+- **镜像源配置不要提交到仓库**。`.cargo/config.toml` 属于开发者本地环境配置，应加入 `.gitignore`。
+- 需要镜像的开发者在本地单独配置 `~/.cargo/config.toml`（全局）或 `src-tauri/.cargo/config.toml`（项目级但不入库）。
+
+---
+
+## 11. Capacitor 升级后 npm ci 失败（lock 文件不同步）
+
+### 现象
+`npm ci` 报错 `package.json and package-lock.json are in sync. Missing: @capacitor/ios from lock file`。
+
+### Root Cause
+在 `package.json` 中新增了 `@capacitor/ios` 依赖，但没有在本地执行 `npm install` 更新 `package-lock.json`。`npm ci` 要求两者严格一致。
+
+### 解决方案
+- CI 中用 `npm install` 代替 `npm ci`（会自动更新 lock 文件），或将新依赖从 `package.json` 移除，在 CI 中内联安装。
+- **最佳实践**：移动端平台依赖（`@capacitor/ios`、`@capacitor/android`）不要写入 `package.json`，在 CI 中按需安装即可。
+
+---
+
+## 12. Android Gradle 编译需要 Java 21+
+
+### 现象
+`gradlew assembleRelease` 报错 `invalid source release: 21`。
+
+### Root Cause
+Capacitor v8 / Gradle 8.14+ 要求 Java 21+，CI 中配置的 Java 17 不够。
+
+### 教训
+- Capacitor 大版本升级后，检查 Gradle 和 Java 版本要求。
+- CI 中 Android 构建配置固定 `java-version: 21`。
+
+---
+
+## 13. Android gradlew 缺少执行权限
+
+### 现象
+`./gradlew: Permission denied`。
+
+### Root Cause
+Git 在 Windows 上克隆时不会保留 Unix 可执行权限位。CI runner（Linux/macOS）需要显式 `chmod +x`。
+
+### 教训
+- 在 CI 构建 Android 前加 `chmod +x gradlew`。
+
+---
+
+## 14. Capacitor v8 iOS 不再使用 CocoaPods
+
+### 现象
+`pod install` 报错 `No Podfile found in the project directory`。
+
+### Root Cause
+Capacitor v8 的 iOS 项目改用 Xcode 原生项目管理，不再生成 Podfile，也不再使用 `.xcworkspace`，而是直接使用 `.xcodeproj`。
+
+### 正确构建命令
+```bash
+xcodebuild -project App.xcodeproj \
+  -scheme App \
+  -configuration Release \
+  -sdk iphoneos \
+  -archivePath $PWD/build/App.xcarchive \
+  CODE_SIGNING_REQUIRED=NO \
+  CODE_SIGNING_ALLOWED=NO \
+  archive
+```
+
+### 教训
+- Capacitor 大版本升级后，iOS 构建方式可能根本性变化，必须查阅对应版本文档。
+
+---
+
+## 15. iOS xcarchive 是目录，不是文件
+
+### 现象
+Release 页面上传了几十个内部文件（Info.plist、App、js 等），体积巨大。
+
+### Root Cause
+`.xcarchive` 是一个目录（Xcode archive bundle），`upload-artifact` 遍历目录上传了所有内容。Release 的 `ios-app/**/*` glob 进一步递归展开了所有文件。
+
+### 解决方案
+构建后先压缩再上传：
+```bash
+cd ios/App/build
+zip -r ios-app.zip App.xcarchive
+```
+
+### 教训
+- macOS 的 `.xcarchive`、`.app`、`.framework` 都是目录，上传前必须 zip。
+
+---
+
+## 16. GitHub Actions tag 触发机制
+
+### 现象
+`git push origin main --tags` 后工作流未触发。
+
+### Root Cause
+`git push --tags` 只推送本地有但远程没有的 tag。如果 tag 已存在（之前已推送），不会产生新的 `push` 事件，工作流不会触发。
+
+### 解决方案
+- 新建 tag：`git tag v1.0.2 && git push origin v1.0.2`
+- 或在 Actions 页面手动触发（`workflow_dispatch`）
+
+---
+
+## 17. 多个 workflow 共享 Release 导致冲突
+
+### 现象
+两个 workflow 各自创建 Release，产物混在一起或冲突。
+
+### 解决方案
+将桌面端（Tauri）和移动端（Capacitor）构建合并到同一个 workflow 文件中，用 `needs: [build, android, ios]` 统一等待所有构建完成后创建 Release。
+
+---
+
+## CI/CD 配置检查清单
+
+在 GitHub Actions 中搭建 Tauri + Capacitor 多平台构建时，逐项确认：
+
+1. **Cargo 镜像** — 项目内无 `.cargo/config.toml` 中的镜像源配置
+2. **package-lock.json** — 与 `package.json` 同步（本地跑 `npm install` 确认）
+3. **Java 版本** — Android 用 Java 21+（Capacitor v8 要求）
+4. **gradlew 权限** — 构建前 `chmod +x gradlew`
+5. **iOS 构建** — Capacitor v8 用 `-project App.xcodeproj`（非 `-workspace App.xcworkspace`），不需要 `pod install`
+6. **xcarchive** — 上传前 zip 压缩，避免上传内部文件
+7. **Artifact 路径** — 精确到文件，避免 glob 匹配到目录内容
+8. **Release 触发** — 打新 tag 或手动触发，旧 tag 不会重新触发
+9. **统一 Release** — 多个构建 job 合并到一个 workflow，用 `needs` 串联
+10. **npm ci vs npm install** — CI 中优先用 `npm ci`，若依赖不同步则用 `npm install`
