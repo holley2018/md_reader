@@ -40,6 +40,9 @@
       "nsis": {
         "displayLanguageSelector": false,
         "installerIcon": "icons/icon.ico"
+      },
+      "wix": {
+        "language": "zh-CN"
       }
     }
   }
