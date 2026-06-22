@@ -2,7 +2,9 @@
 
 ## 概述
 
-本项目在将 Web 版 Markdown 阅读器打包为 Tauri v2 桌面应用的过程中，遇到了大量"看似正确但实际不工作"的问题。本文档记录所有 root cause 及教训，避免重蹈覆辙。
+本项目在将 Web 版 Markdown 阅读器打包为 Tauri v2 桌面应用 + Capacitor 移动应用的过程中，遇到了大量"看似正确但实际不工作"的问题。本文档记录所有 root cause 及教训，避免重蹈覆辙。
+
+> **完整打包技能文档**：见 `skills/tauri-capacitor-build.md`，包含架构概览、完整 workflow 模板、常见问题速查表、发版流程、检查清单等。
 
 ---
 
