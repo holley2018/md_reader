@@ -62,7 +62,7 @@ jobs:
           elif [ -n "${GITHUB_REF#refs/tags/v}" ] && [ "${GITHUB_REF#refs/tags/v}" != "${GITHUB_REF}" ]; then
             echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
           else
-            echo "version=0.0.0-dev" >> $GITHUB_OUTPUT
+            echo "version=0.0.0" >> $GITHUB_OUTPUT
           fi
 
       - name: Sync version to config files
@@ -140,7 +140,7 @@ jobs:
           elif [ -n "${GITHUB_REF#refs/tags/v}" ] && [ "${GITHUB_REF#refs/tags/v}" != "${GITHUB_REF}" ]; then
             echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
           else
-            echo "version=0.0.0-dev" >> $GITHUB_OUTPUT
+            echo "version=0.0.0" >> $GITHUB_OUTPUT
           fi
 
       - name: Sync version to config files
@@ -225,7 +225,7 @@ jobs:
           elif [ -n "${GITHUB_REF#refs/tags/v}" ] && [ "${GITHUB_REF#refs/tags/v}" != "${GITHUB_REF}" ]; then
             echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
           else
-            echo "version=0.0.0-dev" >> $GITHUB_OUTPUT
+            echo "version=0.0.0" >> $GITHUB_OUTPUT
           fi
 
       - name: Sync version to config files
