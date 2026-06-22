@@ -107,20 +107,6 @@ jobs:
             librsvg2-dev \
             patchelf
 
-      - name: Install WiX Toolset (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          choco install wixtoolset -y --no-progress
-          # 找到安装目录并复制到 Tauri 缓存
-          WIX_DIR=$(ls -d "/c/Program Files (x86)/WiX Toolset v3."*/bin 2>/dev/null | head -1)
-          TAURI_WIX="C:/Users/runneradmin/AppData/Local/tauri/WixTools314"
-          if [ -n "$WIX_DIR" ] && [ -d "$TAURI_WIX" ]; then
-            echo "Copying WiX from: $WIX_DIR"
-            cp -f "$WIX_DIR"/* "$TAURI_WIX/" 2>/dev/null || true
-            echo "WiX binaries copied to Tauri cache"
-          fi
-
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
