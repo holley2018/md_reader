@@ -1950,7 +1950,8 @@ async function renderPdfWithPdfJs(buf) {
     }
     container.innerHTML = '';
     container.style.display = 'block';
-    var scale = Math.min(window.innerWidth / 800, 1.5);
+    var baseScale = Math.min(window.innerWidth / 600, 2.5);
+    var scale = baseScale * (window.devicePixelRatio || 1);
     for (var i = 1; i <= pdf.numPages; i++) {
       var page = await pdf.getPage(i);
       var viewport = page.getViewport({ scale: scale });
