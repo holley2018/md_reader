@@ -109,23 +109,16 @@ jobs:
 
       - name: Install WiX Toolset (Windows)
         if: runner.os == 'Windows'
-        run: choco install wixtoolset -y --no-progress
-        shell: bash
-
-      - name: Set WiX path (Windows)
-        if: runner.os == 'Windows'
         shell: bash
         run: |
-          WIX_DIR="/c/Program Files (x86)/WiX Toolset v3.14"
-          if [ ! -d "$WIX_DIR" ]; then
-            WIX_DIR="/c/Program Files (x86)/WiX Toolset v3.11"
-          fi
-          if [ -d "$WIX_DIR" ]; then
-            echo "Found WiX at: $WIX_DIR"
-            echo "TAURI_ENV_WIX_PATH=$WIX_DIR" >> $GITHUB_ENV
-            echo "$WIX_DIR/bin" >> $GITHUB_PATH
-          else
-            echo "WiX not found, using Tauri default"
+          choco install wixtoolset -y --no-progress
+          # 找到安装目录并复制到 Tauri 缓存
+          WIX_DIR=$(ls -d "/c/Program Files (x86)/WiX Toolset v3."*/bin 2>/dev/null | head -1)
+          TAURI_WIX="C:/Users/runneradmin/AppData/Local/tauri/WixTools314"
+          if [ -n "$WIX_DIR" ] && [ -d "$TAURI_WIX" ]; then
+            echo "Copying WiX from: $WIX_DIR"
+            cp -f "$WIX_DIR"/* "$TAURI_WIX/" 2>/dev/null || true
+            echo "WiX binaries copied to Tauri cache"
           fi
 
       - name: Rust cache
