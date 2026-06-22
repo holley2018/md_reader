@@ -1934,8 +1934,9 @@ function renderPdf(buf) {
 
 async function renderPdfWithPdfJs(buf) {
   try {
-    const pdfjsLib = await import('lib/pdf.min.mjs');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.mjs';
+    var baseUrl = window.location.href.replace(/\/[^/]*$/, '/');
+    const pdfjsLib = await import(baseUrl + 'lib/pdf.min.mjs');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = baseUrl + 'lib/pdf.worker.min.mjs';
     const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buf) });
     const pdf = await loadingTask.promise;
     htmlFrame.style.display = 'none';
