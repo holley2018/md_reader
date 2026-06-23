@@ -45,6 +45,10 @@
   }
 
   function blobToArrayBuffer(blob) {
+    // Prefer native Blob.arrayBuffer() to avoid FileReader issues with browser extensions
+    if (blob.arrayBuffer) {
+      return blob.arrayBuffer();
+    }
     return new Promise(function (resolve, reject) {
       var r = new FileReader();
       r.onload = function () { resolve(r.result); };

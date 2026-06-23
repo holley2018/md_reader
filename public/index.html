@@ -24,6 +24,7 @@
   --primary: #6c5ce7;
   --primary-hover: #5a4bd1;
   --primary-light: rgba(108, 92, 231, 0.1);
+  --accent: #6366f1;
   --shadow: 0 2px 12px rgba(0,0,0,0.08);
   --radius: 12px;
   --radius-sm: 8px;
@@ -46,6 +47,7 @@
   --primary: #a29bfe;
   --primary-hover: #b8b1ff;
   --primary-light: rgba(162, 155, 254, 0.1);
+  --accent: #818cf8;
   --shadow: 0 2px 12px rgba(0,0,0,0.3);
 }
 
@@ -354,12 +356,17 @@ body {
 .csv-table-wrap tr:nth-child(even) td { background: var(--primary-light); }
 
 /* ===== Office preview ===== */
-.docx-preview-wrap { width: 100%; overflow-x: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; align-items: center; }
+.docx-preview-wrap { width: 100%; overflow-x: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; align-items: center; padding: 16px; box-sizing: border-box; }
 .docx-preview-wrap > * { max-width: 100%; }
 .docx-preview-wrap table, .docx-preview-wrap img { max-width: 100%; height: auto; }
-.docx-preview-wrap .docx-wrapper { background: transparent !important; padding: 0 !important; }
-.docx-preview-wrap .docx-wrapper > section { padding: 16px !important; background: var(--bg-card); border-radius: var(--radius-sm); box-shadow: var(--shadow); max-width: 100% !important; margin: 0 auto !important; }
-.docx-preview-wrap .docx-wrapper > section[style*="width"] { width: auto !important; }
+.docx-preview-wrap img { object-fit: contain; }
+.docx-preview-wrap canvas { max-width: 100%; height: auto; }
+.docx-preview-wrap svg { max-width: 100%; height: auto; }
+.docx-preview-wrap .docx-wrapper { background: transparent !important; padding: 0 !important; width: 100% !important; }
+.docx-preview-wrap .docx-wrapper > section { padding: 48px 56px !important; background: var(--bg-card); border-radius: var(--radius-sm); box-shadow: var(--shadow); max-width: 100% !important; margin: 12px auto !important; box-sizing: border-box !important; overflow-wrap: break-word; }
+/* Black block workaround: EMF/WMF placeholder shapes */
+.docx-preview-wrap img[src^="data:image/x-emf"], .docx-preview-wrap img[src^="data:image/x-wmf"] { opacity: 0.4; border: 1px dashed var(--border); }
+.docx-preview-wrap canvas[width="1"][height="1"], .docx-preview-wrap img[width="1"][height="1"] { display: none !important; }
 
 .ppt-slide-wrap { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .ppt-slide-wrap img { max-width: 100%; height: auto; display: block; }
@@ -620,9 +627,10 @@ body.auto .search-active { background: #ff6b35; color: #fff; }
   font: 12px/1.4 monospace; padding: 10px;
   z-index: 99999; white-space: pre-wrap;
   max-height: 250px; overflow-y: auto;
-  display: none; pointer-events: none;
+  display: none; user-select: text; cursor: text;
 }
 #debugPanel.show { display: block; }
+#debugPanel::before { content: '📋 点击可复制 | '; color: #888; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -1071,19 +1079,27 @@ const _libMap = {
   'https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.min.js': 'lib/html-docx.min.js',
   'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js': 'lib/html2canvas.min.js',
   'https://cdn.jsdelivr.net/npm/pptxjs@3.0.1/dist/pptx.min.js': 'lib/pptxjs.js',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js': 'lib/chart.umd.min.js',
+  'https://cdn.jsdelivr.net/npm/pptxviewjs@1.1.9/dist/PptxViewJS.min.js': 'lib/pptxviewjs.min.js',
   'https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js': 'lib/mermaid.min.js',
 };
 function _localUrl(url) { return _libMap[url] || url; }
 
-// ===== Dynamic script loader =====
+// ===== Dynamic script loader (local first, CDN fallback) =====
 function loadScript(src) {
-  src = _localUrl(src);
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = src;
-    s.onload = resolve;
-    s.onerror = () => reject(new Error(`加载脚本失败: ${src}`));
-    document.head.appendChild(s);
+  var local = _localUrl(src);
+  return new Promise(function(resolve, reject) {
+    function tryLoad(url) {
+      var s = document.createElement('script');
+      s.src = url;
+      s.onload = resolve;
+      s.onerror = function() {
+        if (url === local && src !== local) { tryLoad(src); }
+        else { reject(new Error('加载脚本失败: ' + url)); }
+      };
+      document.head.appendChild(s);
+    }
+    tryLoad(local);
   });
 }
 
@@ -1141,6 +1157,7 @@ function showAboutDialog() {
     <h2 style="margin:0 0 4px;font-size:18px">通用阅读器</h2>
     <p style="margin:0 0 16px;font-size:13px;color:var(--text-secondary)">v${typeof __APP_VERSION__ !== 'undefined' && __APP_VERSION__ !== '__APP_VERSION__' ? __APP_VERSION__ : 'dev'}</p>
     <p style="margin:0 0 6px;font-size:14px">支持 MD / HTML / TXT / PDF /<br>Word / Excel / PPT / CSV / JSON / 代码</p>
+    <p style="margin:8px 0 16px;font-size:12px;color:var(--text-secondary)">注：Word、Excel、PPT 仅限基础格式，复杂排版可能无法完整预览</p>
     <p style="margin:16px 0 20px;font-size:13px;color:var(--text-secondary)">版权作者：洋芋哥</p>
     <button id="aboutOkBtn" style="padding:8px 32px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;cursor:pointer;min-width:100px">确定</button>
   `;
@@ -1183,6 +1200,32 @@ function showPasswordDialog() {
     input.onkeydown = (e) => { if (e.key === 'Enter') submit.click(); if (e.key === 'Escape') cancel.click(); };
     input.oninput = () => { error.style.display='none'; };
     setTimeout(() => input.focus(), 100);
+  });
+}
+
+// ===== Generic prompt dialog (replaces native prompt() for Android WebView compat) =====
+function showPromptDialog(options) {
+  return new Promise(function(resolve) {
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:20px';
+    var dialog = document.createElement('div');
+    dialog.style.cssText = 'background:var(--bg-card);border-radius:16px;padding:24px;max-width:340px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.3);text-align:center';
+    dialog.innerHTML = `
+      <h3 style="margin:0 0 12px;font-size:16px;color:var(--text)">${options.title || '输入'}</h3>
+      <input id="promptInput" type="text" placeholder="${options.placeholder || ''}" value="${options.defaultValue || ''}" autocomplete="off"
+        style="width:100%;padding:12px;border:2px solid var(--border);border-radius:10px;font-size:16px;background:var(--bg);color:var(--text);outline:none;box-sizing:border-box">
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button id="promptCancel" style="flex:1;padding:12px;border:2px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:15px;cursor:pointer">取消</button>
+        <button id="promptSubmit" style="flex:1;padding:12px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-size:15px;font-weight:600;cursor:pointer">确定</button>
+      </div>`;
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    var input = dialog.querySelector('#promptInput');
+    function close(v) { document.body.removeChild(overlay); resolve(v); }
+    dialog.querySelector('#promptSubmit').onclick = function() { close(input.value); };
+    dialog.querySelector('#promptCancel').onclick = function() { close(''); };
+    input.onkeydown = function(e) { if (e.key === 'Enter') close(input.value); if (e.key === 'Escape') close(''); };
+    setTimeout(function() { input.focus(); input.select(); }, 100);
   });
 }
 
@@ -1418,10 +1461,10 @@ function dbClear(store) {
 }
 
 // ===== Bookmark helpers =====
-function saveBookmark() {
+async function saveBookmark() {
   if (!state.fileName) { showToast('没有打开的文件'); return; }
   const scrollTop = getScrollMetrics().scrollTop;
-  const label = prompt('书签名称:', '位置 ' + (document.querySelectorAll('.bm-item').length + 1));
+  const label = await showPromptDialog({ title: '书签名称', placeholder: '输入书签名称...', defaultValue: '位置 ' + (document.querySelectorAll('.bm-item').length + 1) });
   if (!label || !label.trim()) return;
   const id = state.fileName + '::' + label.trim();
   dbPut('bookmarks', { id, name: state.fileName, label: label.trim(), scrollTop, createdAt: Date.now() }).then(() => {
@@ -1559,6 +1602,7 @@ async function restoreLastSession() {
       state.fileExt = lastMeta.ext;
       titleDisplay.textContent = lastMeta.name;
       renderContent();
+      showActionStrip(true);
       if (prog) setTimeout(() => scrollContentToPos(prog.scrollTop, 'instant'), 400);
       showToast('已恢复: ' + lastMeta.name);
     } else if (lastMeta.type === 'html' && !lastMeta.ext) {
@@ -1673,7 +1717,7 @@ async function loadFile(source) {
       _d('readAsArrayBuffer fd: type=' + typeof raw + ' isArrayBuffer=' + (raw instanceof ArrayBuffer) + ' byteLength=' + (raw ? raw.byteLength : 0));
       if (!raw || raw.byteLength === 0) _d('WARNING: raw is empty!');
     } catch(e) {
-      _d('ERROR: readAsArrayBuffer failed: ' + (e.message || e)); _showDiag();
+      _d('ERROR: readAsArrayBuffer failed: ' + (e.message || e));
       showToast('读取文件失败'); return;
     }
     _d('check: !isBinary=' + !isBinary + ' fileType==txt=' + (state.fileType === 'txt') + ' isBinaryContent=' + (isBinaryContent(raw)));
@@ -1682,7 +1726,7 @@ async function loadFile(source) {
         _d('>>> IMAGE ext detected but type=txt, forcing img <<<');
         state.fileType = 'img'; isBinary = true;
       } else {
-        _d('>>> WILL SHOW: 不支持的文件格式 <<<'); _showDiag();
+        _d('>>> WILL SHOW: 不支持的文件格式 <<<');
         showToast('不支持的文件格式'); return;
       }
     }
@@ -1692,7 +1736,7 @@ async function loadFile(source) {
       raw = await file.arrayBuffer();
       _d('readAsArrayBuffer file: type=' + typeof raw + ' isArrayBuffer=' + (raw instanceof ArrayBuffer) + ' byteLength=' + (raw ? raw.byteLength : 0));
     } catch(e) {
-      _d('ERROR: file.arrayBuffer() failed: ' + (e.message || e)); _showDiag();
+      _d('ERROR: file.arrayBuffer() failed: ' + (e.message || e));
       showToast('读取文件失败'); return;
     }
     _d('check: !isBinary=' + !isBinary + ' fileType==txt=' + (state.fileType === 'txt') + ' isBinaryContent=' + (isBinaryContent(raw)));
@@ -1701,7 +1745,7 @@ async function loadFile(source) {
         _d('>>> IMAGE ext detected but type=txt, forcing img <<<');
         state.fileType = 'img'; isBinary = true;
       } else {
-        _d('>>> WILL SHOW: 不支持的文件格式 <<<'); _showDiag();
+        _d('>>> WILL SHOW: 不支持的文件格式 <<<');
         showToast('不支持的文件格式'); return;
       }
     }
@@ -1732,7 +1776,8 @@ async function loadFile(source) {
 }
 
 // ===== Abort mechanism =====
-let activeOp = { aborted: false, label: '' };
+let activeOp = { aborted: false, label: '', seq: 0 };
+let _opSeq = 0;
 
 function resetAbort() {
   activeOp.aborted = false;
@@ -1831,7 +1876,7 @@ function renderContent() {
         meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=3.0';
         if (doc.head) doc.head.insertBefore(meta, doc.head.firstChild);
         const style = doc.createElement('style');
-        style.textContent = `img,video,iframe,embed{max-width:100%;height:auto}table{overflow-x:auto;max-width:100%;display:block}pre{overflow-x:auto}html{overflow:auto!important}body{overflow:auto!important;max-width:100%!important;box-sizing:border-box;word-wrap:break-word;overflow-wrap:break-word}`;
+        style.textContent = `html{overflow:auto!important;padding:0 16px}body{overflow:auto!important;max-width:100%!important;box-sizing:border-box;word-wrap:break-word;overflow-wrap:break-word;margin:16px auto!important;max-width:800px!important}img,video,iframe,embed{max-width:100%;height:auto}table{overflow-x:auto;max-width:100%;display:block}pre{overflow-x:auto}`;
         if (doc.head) doc.head.appendChild(style);
         injectSearchStyles(doc);
         try { doc.defaultView.addEventListener('scroll', updateProgress); } catch(e) {}
@@ -1873,7 +1918,6 @@ function renderContent() {
 }
 
 function renderPdf(buf) {
-  showActionStrip(false);
   showLoading('正在加载 PDF...');
   showContent();
   // Desktop: use iframe (browser built-in PDF viewer)
@@ -2134,9 +2178,9 @@ async function renderPdfWithPdfJs(buf) {
         m.style.cssText = 'position:absolute;top:' + (note.y || 10) + 'px;right:10px;width:24px;height:24px;background:#FF9800;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;z-index:10;box-shadow:0 1px 3px rgba(0,0,0,0.3);';
         m.textContent = '📝';
         (function(nk) {
-          m.addEventListener('click', function() {
-            var txt = prompt('便签内容:', notes[nk].text || '');
-            if (txt !== null) { notes[nk].text = txt; m.title = txt; }
+          m.addEventListener('click', async function() {
+            var txt = await showPromptDialog({ title: '编辑便签', placeholder: '输入便签内容...', defaultValue: notes[nk].text || '' });
+            if (txt) { notes[nk].text = txt; m.title = txt; }
           });
         })(key);
         wrap.appendChild(m);
@@ -2194,7 +2238,15 @@ async function renderPdfWithPdfJs(buf) {
     document.getElementById('pdfClose').addEventListener('click', function() {
       if (origViewport) origViewport.content = origViewportContent;
       wrapper.remove();
-      clearDocument();
+      state.fileContent = null;
+      state.fileName = '';
+      state.fileType = '';
+      state.fileExt = '';
+      state.fileEncoding = '';
+      titleDisplay.textContent = '';
+      mdContent.style.display = 'none';
+      htmlFrame.style.display = 'none';
+      emptyState.style.display = 'flex';
     });
 
     function setTool(tool) {
@@ -2240,40 +2292,39 @@ async function renderPdfWithPdfJs(buf) {
     });
 
     var drawingState = null;
-    pagesContainer.addEventListener('mousedown', function(e) {
-      if (activeTool === 'none') return;
+    function getTouchPos(e) {
+      var pageData = pageCanvases[currentPage - 1];
+      if (!pageData) return null;
+      var rect = pageData.canvas.getBoundingClientRect();
+      var scaleRatio = pageData.canvas.width / rect.width;
+      var touch = e.touches[0] || e.changedTouches[0];
+      return { x: (touch.clientX - rect.left) * scaleRatio, y: (touch.clientY - rect.top) * scaleRatio, canvas: pageData.canvas, element: pageData.element };
+    }
+    function getMousePos(e) {
+      var pageData = pageCanvases[currentPage - 1];
+      if (!pageData) return null;
+      var rect = pageData.canvas.getBoundingClientRect();
+      var scaleRatio = pageData.canvas.width / rect.width;
+      return { x: (e.clientX - rect.left) * scaleRatio, y: (e.clientY - rect.top) * scaleRatio, canvas: pageData.canvas, element: pageData.element };
+    }
+    async function handleDrawStart(x, y) {
       if (activeTool === 'note') {
-        var pageData = pageCanvases[currentPage - 1];
-        if (!pageData) return;
-        var rect = pageData.canvas.getBoundingClientRect();
-        var scaleRatio = pageData.canvas.width / rect.width;
-        var x = (e.clientX - rect.left) * scaleRatio;
-        var y = (e.clientY - rect.top) * scaleRatio;
-        var text = prompt('输入便签内容:');
-        if (!text) return;
-        var key = 'note_' + Date.now();
-        notes[key] = { pageNum: currentPage, x: x, y: y, text: text };
-        renderAnnotations();
+        var text = await showPromptDialog({ title: '添加便签', placeholder: '输入便签内容...', defaultValue: '' });
+        if (text) {
+          var key = 'note_' + Date.now();
+          notes[key] = { pageNum: currentPage, x: x, y: y, text: text };
+          renderAnnotations();
+        }
         return;
       }
-      var pageData = pageCanvases[currentPage - 1];
-      if (!pageData) return;
-      var rect = pageData.canvas.getBoundingClientRect();
-      var scaleRatio = pageData.canvas.width / rect.width;
-      var x = (e.clientX - rect.left) * scaleRatio;
-      var y = (e.clientY - rect.top) * scaleRatio;
       drawingState = { startX: x, startY: y, points: [{ x: x, y: y }] };
-    });
-    pagesContainer.addEventListener('mousemove', function(e) {
+    }
+    function handleDrawMove(x, y) {
       if (!drawingState || activeTool === 'none' || activeTool === 'note') return;
-      var pageData = pageCanvases[currentPage - 1];
-      if (!pageData) return;
-      var rect = pageData.canvas.getBoundingClientRect();
-      var scaleRatio = pageData.canvas.width / rect.width;
-      var x = (e.clientX - rect.left) * scaleRatio;
-      var y = (e.clientY - rect.top) * scaleRatio;
       drawingState.points.push({ x: x, y: y });
       if (activeTool === 'draw' || activeTool === 'underline') {
+        var pageData = pageCanvases[currentPage - 1];
+        if (!pageData) return;
         var overlay = pageData.element.querySelector('[data-overlay="' + currentPage + '"]');
         if (!overlay) overlay = createPageOverlay(currentPage);
         if (!overlay) return;
@@ -2289,15 +2340,9 @@ async function renderPdfWithPdfJs(buf) {
           ctx.stroke();
         }
       }
-    });
-    pagesContainer.addEventListener('mouseup', function(e) {
+    }
+    function handleDrawEnd(x, y) {
       if (!drawingState || activeTool === 'none' || activeTool === 'note') { drawingState = null; return; }
-      var pageData = pageCanvases[currentPage - 1];
-      if (!pageData) { drawingState = null; return; }
-      var rect = pageData.canvas.getBoundingClientRect();
-      var scaleRatio = pageData.canvas.width / rect.width;
-      var x = (e.clientX - rect.left) * scaleRatio;
-      var y = (e.clientY - rect.top) * scaleRatio;
       var key = 'ann_' + Date.now();
       var sx = drawingState.startX, sy = drawingState.startY;
       if (activeTool === 'highlight') {
@@ -2311,6 +2356,40 @@ async function renderPdfWithPdfJs(buf) {
       }
       drawingState = null;
       renderAnnotations();
+    }
+    // Mouse events
+    pagesContainer.addEventListener('mousedown', function(e) {
+      if (activeTool === 'none') return;
+      var pos = getMousePos(e);
+      if (pos) handleDrawStart(pos.x, pos.y);
+    });
+    pagesContainer.addEventListener('mousemove', function(e) {
+      var pos = getMousePos(e);
+      if (pos) handleDrawMove(pos.x, pos.y);
+    });
+    pagesContainer.addEventListener('mouseup', function(e) {
+      var pos = getMousePos(e);
+      if (pos) handleDrawEnd(pos.x, pos.y);
+    });
+    // Touch events
+    pagesContainer.addEventListener('touchstart', function(e) {
+      if (activeTool === 'none') return;
+      if (e.touches.length === 1) {
+        var pos = getTouchPos(e);
+        if (pos) handleDrawStart(pos.x, pos.y);
+      }
+    }, { passive: true });
+    pagesContainer.addEventListener('touchmove', function(e) {
+      if (drawingState && e.touches.length === 1) {
+        var pos = getTouchPos(e);
+        if (pos) handleDrawMove(pos.x, pos.y);
+      }
+    }, { passive: true });
+    pagesContainer.addEventListener('touchend', function(e) {
+      if (drawingState) {
+        var pos = getTouchPos(e);
+        if (pos) handleDrawEnd(pos.x, pos.y);
+      }
     });
 
     var pinchState = null;
@@ -2365,7 +2444,7 @@ async function renderPdfWithPdfJs(buf) {
 
 // ===== URL browsing =====
 async function browseUrl(prefill) {
-  const url = prefill || prompt('输入网址:', 'https://');
+  const url = prefill || await showPromptDialog({ title: '输入网址', placeholder: 'https://', defaultValue: 'https://' });
   if (!url || !url.trim()) return;
   let finalUrl = url.trim();
   if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
@@ -2498,11 +2577,49 @@ async function browseUrl(prefill) {
 }
 
 async function renderDocx(arrayBuffer) {
+  _d('[DOCX] renderDocx called, size=' + (arrayBuffer ? arrayBuffer.byteLength : 0));
   showLoading('正在渲染 Word 文档...', true);
+
+  // First: detect MHT-based docx (exported by this app via html-docx-js)
+  try {
+    if (typeof JSZip === 'undefined') {
+      await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+    }
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    var zipFiles = Object.keys(zip.files);
+    _d('[DOCX] ZIP files: ' + zipFiles.join(', '));
+    var mhtEntry = zip.file('word/afchunk.mht');
+    _d('[DOCX] word/afchunk.mht exists=' + !!mhtEntry);
+    if (mhtEntry) {
+      _d('[DOCX] extracting MHT...');
+      const html = await extractHtmlFromDocx(arrayBuffer);
+      _d('[DOCX] MHT html length=' + (html ? html.length : 0) + ' snippet=' + (html ? html.substring(0, 200) : 'null'));
+      if (html) {
+        showContent();
+        htmlFrame.style.display = 'block';
+        mdContent.style.display = 'none';
+        htmlFrame.srcdoc = html;
+        showToast(`已打开: ${state.fileName}`);
+        return;
+      }
+      _d('[DOCX] MHT extraction returned null');
+    }
+  } catch(e) { _d('[DOCX] MHT extraction error: ' + (e.message || e)); }
+
+  // Standard docx — try docx-preview
   try {
     if (typeof docx === 'undefined') {
+      _d('[DOCX] loading docx-preview library...');
+      // JSZip must be loaded first (docx-preview depends on it)
+      if (typeof JSZip === 'undefined') {
+        await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+        _d('[DOCX] JSZip loaded, typeof JSZip=' + typeof JSZip);
+      }
       await loadScript('https://cdn.jsdelivr.net/npm/docx-preview@0.3.0/dist/docx-preview.min.js');
       if (activeOp.aborted) return;
+      _d('[DOCX] docx-preview loaded, typeof docx=' + typeof docx);
+    } else {
+      _d('[DOCX] docx-preview already loaded');
     }
     showContent();
     mdContent.style.display = 'block';
@@ -2514,6 +2631,7 @@ async function renderDocx(arrayBuffer) {
     mdContent.innerHTML = '';
     mdContent.appendChild(wrap);
 
+    _d('[DOCX] calling docx.renderAsync...');
     await docx.renderAsync(arrayBuffer, wrap, null, {
       className: 'docx-preview',
       inWrapper: true,
@@ -2526,6 +2644,7 @@ async function renderDocx(arrayBuffer) {
       renderEndnotes: true,
     });
     if (activeOp.aborted) return;
+    _d('[DOCX] renderAsync completed, wrap children=' + wrap.children.length);
 
     // Verify content was rendered; if empty, treat as failed and fall back to mammoth
     if (typeof docx === 'undefined' || !wrap.querySelector('[class*="docx-"]')) {
@@ -2549,16 +2668,53 @@ async function renderDocx(arrayBuffer) {
       }
     });
 
+    // Detect and mark black-block images (EMF/WMF rendering failures)
+    wrap.querySelectorAll('img').forEach(img => {
+      // Check if image failed to load (broken src) or is a data URL with x-emf/x-wmf
+      if (img.naturalWidth === 0 && img.naturalHeight === 0 && img.src.startsWith('data:')) {
+        img.style.background = 'var(--bg-code)';
+        img.style.border = '1px dashed var(--border)';
+        img.style.minWidth = '100px';
+        img.style.minHeight = '60px';
+        img.alt = '[图片格式不支持]';
+        _d('[DOCX] black block image detected, src=' + img.src.substring(0, 80));
+      }
+    });
+    // Also handle div-based shapes with black background (common EMF/WMF placeholder)
+    wrap.querySelectorAll('div, span').forEach(el => {
+      var bg = getComputedStyle(el).backgroundColor;
+      if (bg === 'rgb(0, 0, 0)' || bg === '#000000') {
+        var w = el.offsetWidth;
+        var h = el.offsetHeight;
+        if (w > 50 && h > 50 && el.textContent.trim().length === 0) {
+          el.style.background = 'var(--bg-code)';
+          el.style.border = '1px dashed var(--border)';
+          _d('[DOCX] black block shape detected: ' + w + 'x' + h);
+        }
+      }
+    });
+
+    // Force page margins on sections (inline styles from docx-preview override CSS)
+    wrap.querySelectorAll('section').forEach(sec => {
+      sec.style.padding = '48px 56px';
+      sec.style.margin = '12px auto';
+      sec.style.maxWidth = '100%';
+      sec.style.boxSizing = 'border-box';
+    });
+    _d('[DOCX] forced padding on ' + wrap.querySelectorAll('section').length + ' sections');
+
     buildWordOutline();
     showToast(`已渲染: ${state.fileName}`);
     reapplyZoom();
   } catch (e) {
     if (activeOp.aborted) return;
+    _d('[DOCX] renderAsync FAILED: ' + (e.message || e));
     // Try extracting MHT altChunk (from documents exported by this app via html-docx-js)
     try {
       const html = await extractHtmlFromDocx(arrayBuffer);
       if (activeOp.aborted) return;
       if (html) {
+        _d('[DOCX] MHT altChunk extracted OK');
         showContent();
         htmlFrame.style.display = 'block';
         mdContent.style.display = 'none';
@@ -2569,13 +2725,18 @@ async function renderDocx(arrayBuffer) {
     } catch (_) {}
     // Fallback to mammoth
     try {
+      _d('[DOCX] falling back to mammoth...');
       showLoading('使用简化模式...', true);
       if (typeof mammoth === 'undefined') {
+        _d('[DOCX] loading mammoth library...');
         await loadScript('https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js');
         if (activeOp.aborted) return;
+        _d('[DOCX] mammoth loaded, typeof mammoth=' + typeof mammoth);
       }
+      _d('[DOCX] calling mammoth.convertToHtml...');
       const result = await mammoth.convertToHtml({ arrayBuffer });
       if (activeOp.aborted) return;
+      _d('[DOCX] mammoth result length=' + (result.value ? result.value.length : 0));
       showContent();
       mdContent.style.display = 'block';
       if (result.value && result.value.trim()) {
@@ -2604,10 +2765,12 @@ async function renderDocx(arrayBuffer) {
 
 // ===== Render .doc (legacy Word binary, or Word HTML exported from this app) =====
 async function renderDoc(arrayBuffer) {
+  _d('[DOC] renderDoc called, size=' + (arrayBuffer ? arrayBuffer.byteLength : 0));
   try {
     // Check if this is actually Word HTML (exported from this app's "另存为 → Word")
     const header = new TextDecoder('utf-8').decode(arrayBuffer.slice(0, 1024));
     if (header.includes('<html') || header.includes('<!DOCTYPE html>')) {
+      _d('[DOC] detected HTML header, rendering as HTML');
       const html = new TextDecoder('utf-8').decode(arrayBuffer);
       showContent();
       htmlFrame.style.display = 'block';
@@ -2621,13 +2784,18 @@ async function renderDoc(arrayBuffer) {
   // Check if it's actually a .docx file (starts with PK ZIP signature)
   const sig = new Uint8Array(arrayBuffer.slice(0, 4));
   if (sig[0] === 0x50 && sig[1] === 0x4B && sig[2] === 0x03 && sig[3] === 0x04) {
+    _d('[DOC] detected ZIP signature, treating as .docx');
     // It's a ZIP file — try mammoth.js (docx format)
     try {
       showLoading('正在解析 Word 文档...', true);
       if (typeof mammoth === 'undefined') {
+        _d('[DOC] loading mammoth...');
         await loadScript('https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js');
+        _d('[DOC] mammoth loaded');
       }
+      _d('[DOC] calling mammoth.convertToHtml...');
       const result = await mammoth.convertToHtml({ arrayBuffer });
+      _d('[DOC] mammoth result length=' + (result.value ? result.value.length : 0));
       if (result.value && result.value.trim()) {
         showContent();
         mdContent.style.display = 'block';
@@ -2642,8 +2810,10 @@ async function renderDoc(arrayBuffer) {
 
   // Real binary .doc — try to extract text content
   try {
+    _d('[DOC] trying binary .doc text extraction...');
     showLoading('正在解析 .doc 文档...', true);
     const text = extractTextFromBinaryDoc(arrayBuffer);
+    _d('[DOC] extractTextFromBinaryDoc result length=' + (text ? text.length : 0));
     if (text && text.trim().length > 10) {
       showContent();
       mdContent.style.display = 'block';
@@ -2656,6 +2826,7 @@ async function renderDoc(arrayBuffer) {
   } catch(e) {}
 
   // All attempts failed
+  _d('[DOC] all parsing attempts failed');
   showContent();
   mdContent.style.display = 'block';
   mdContent.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><h2>无法解析 .doc 文件</h2><p>该文件可能是加密或特殊格式的 Word 文档。<br>请尝试用 Word / WPS 打开后另存为 <strong>.docx</strong> 格式后再导入。</p></div>`;
@@ -2756,9 +2927,12 @@ async function renderXlsx(arrayBuffer) {
         mdContent.querySelectorAll('.xlsx-sheet').forEach(s => s.style.display = 'none');
         const target = mdContent.querySelector(`.xlsx-sheet[data-sheet="${idx}"]`);
         if (target) target.style.display = 'block';
-        // If not yet rendered, start progressive render
+        // Reset render flag and start progressive render
         const wrap = document.getElementById(`xlsx-wrap-${idx}`);
-        if (wrap && wrap.dataset.rendered !== '1') renderSheetProgressively(idx);
+        if (wrap) {
+          delete wrap.dataset.rendered;
+          renderSheetProgressively(idx);
+        }
       });
     });
 
@@ -3061,117 +3235,140 @@ async function renderXlsx(arrayBuffer) {
 
 // ===== Render PPTX =====
 async function renderPptx(arrayBuffer) {
-  showLoading('正在渲染 PPT 文档...', true);
+  showLoading('正在解析 PPT 文档...', true);
+  var mySeq = ++_opSeq;
+  activeOp.seq = mySeq;
   try {
     if (typeof JSZip === 'undefined') {
       await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
-      if (activeOp.aborted) return;
+      if (activeOp.aborted || activeOp.seq !== mySeq) return;
     }
-    if (typeof pptxjs === 'undefined' && typeof PPTX === 'undefined') {
-      try {
-        await loadScript('https://cdn.jsdelivr.net/npm/pptxjs@3.0.1/dist/pptx.min.js');
-        if (activeOp.aborted) return;
-      } catch(e) { throw new Error('幻灯片渲染库加载失败'); }
-    }
-
     showContent();
     mdContent.style.display = 'block';
     mdContent.style.overflowX = 'auto';
 
-    const P = typeof PPTX !== 'undefined' ? PPTX : pptxjs;
-    let slides = [];
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    if (activeOp.aborted || activeOp.seq !== mySeq) { hideLoading(); return; }
+    const slideFiles = Object.keys(zip.files).filter(f => /^ppt\/slides\/slide\d+\.xml$/.test(f)).sort();
+    if (!slideFiles.length) throw new Error('未找到幻灯片');
 
-    if (P.convertToPresentation) {
-      const pres = await P.convertToPresentation(arrayBuffer);
-      slides = pres.slides || [];
-    } else if (P.PPTX && P.PPTX.convertToPresentation) {
-      const pres = await P.PPTX.convertToPresentation(arrayBuffer);
-      slides = pres.slides || [];
-    } else if (P.prototype && P.prototype.load) {
-      const inst = new P();
-      await inst.load(arrayBuffer);
-      slides = inst.slides || [];
-    } else {
-      throw new Error('无法初始化幻灯片渲染');
-    }
+    let html = '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">共 ' + slideFiles.length + ' 张幻灯片 (文本模式)</div>';
+    const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+    const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
 
-    if (activeOp.aborted) return;
-    if (!slides.length) throw new Error('未找到幻灯片');
-
-    let html = `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">共 ${slides.length} 张幻灯片</div>`;
-
-    for (let i = 0; i < slides.length; i++) {
-      const slide = slides[i];
-      let slideHtml = '';
-
-      if (typeof slide === 'string') {
-        slideHtml = slide;
-      } else if (slide.html) {
-        slideHtml = slide.html;
-      } else if (slide.content) {
-        slideHtml = slide.content;
-      } else {
-        slideHtml = '<p style="color:var(--text-secondary)">幻灯片 ' + (i + 1) + '</p>';
-      }
-
-      html += `<div class="ppt-slide">
-        <div class="ppt-slide-num">幻灯片 ${i + 1}</div>
-        <div class="ppt-slide-content ppt-slide-wrap">${slideHtml}</div>
-      </div>`;
-    }
-    mdContent.innerHTML = html;
-    showToast(`已渲染: ${state.fileName}`);
-    reapplyZoom();
-  } catch (e) {
-    // Fallback: JSZip text extraction
-    try {
-      showLoading('使用文本模式解析...');
-      const zip = await JSZip.loadAsync(arrayBuffer);
-      const slideFiles = Object.keys(zip.files).filter(f => /^ppt\/slides\/slide\d+\.xml$/.test(f)).sort();
-      if (!slideFiles.length) throw new Error('未找到幻灯片');
-
-      showContent();
-      mdContent.style.display = 'block';
-      mdContent.style.overflowX = 'auto';
-      let html = `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">共 ${slideFiles.length} 张幻灯片 (文本模式)</div>`;
-      const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
-      const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
-
-      for (let i = 0; i < slideFiles.length; i++) {
-        const xmlText = await zip.files[slideFiles[i]].async('text');
-        const xml = new DOMParser().parseFromString(xmlText, 'text/xml');
-        const spTree = xml.getElementsByTagNameNS(NS_P, 'spTree')[0];
-        if (!spTree) continue;
-        const shapes = spTree.getElementsByTagNameNS(NS_P, 'sp');
-        const texts = [];
-        for (let s = 0; s < shapes.length; s++) {
-          const txBody = shapes[s].getElementsByTagNameNS(NS_P, 'txBody')[0];
-          if (!txBody) continue;
-          const paras = txBody.getElementsByTagNameNS(NS_A, 'p');
-          for (let p = 0; p < paras.length; p++) {
-            const runs = paras[p].getElementsByTagNameNS(NS_A, 'r');
-            let t = '';
-            for (let r = 0; r < runs.length; r++) {
-              const tn = runs[r].getElementsByTagNameNS(NS_A, 't')[0];
-              if (tn) t += tn.textContent;
-            }
-            if (t.trim()) texts.push(escapeHtml(t.trim()));
+    for (let i = 0; i < slideFiles.length; i++) {
+      if (activeOp.aborted || activeOp.seq !== mySeq) break;
+      const xmlText = await zip.files[slideFiles[i]].async('text');
+      const xml = new DOMParser().parseFromString(xmlText, 'text/xml');
+      const spTree = xml.getElementsByTagNameNS(NS_P, 'spTree')[0];
+      if (!spTree) continue;
+      const shapes = spTree.getElementsByTagNameNS(NS_P, 'sp');
+      const texts = [];
+      for (let s = 0; s < shapes.length; s++) {
+        const txBody = shapes[s].getElementsByTagNameNS(NS_P, 'txBody')[0];
+        if (!txBody) continue;
+        const paras = txBody.getElementsByTagNameNS(NS_A, 'p');
+        for (let p = 0; p < paras.length; p++) {
+          const runs = paras[p].getElementsByTagNameNS(NS_A, 'r');
+          let t = '';
+          for (let r = 0; r < runs.length; r++) {
+            const tn = runs[r].getElementsByTagNameNS(NS_A, 't')[0];
+            if (tn) t += tn.textContent;
           }
+          if (t.trim()) texts.push(escapeHtml(t.trim()));
         }
-        html += `<div class="ppt-slide"><div class="ppt-slide-num">幻灯片 ${i + 1}</div><div class="ppt-slide-content">`;
-        texts.forEach(t => { html += t.length < 50 ? `<p class="ppt-title">${t}</p>` : `<p>${t}</p>`; });
-        html += `</div></div>`;
       }
-      mdContent.innerHTML = html;
-      showToast(`已打开 (文本模式): ${state.fileName}`);
-      reapplyZoom();
-    } catch (e2) {
-      hideLoading();
-      mdContent.style.display = 'block';
-      mdContent.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><h2>解析失败</h2><p>${escapeHtml(e2.message || '无法解析 PPT 文档')}</p></div>`;
-      showToast('PPT 解析失败');
-      reapplyZoom();
+      html += '<div class="ppt-slide"><div class="ppt-slide-num">幻灯片 ' + (i + 1) + '</div><div class="ppt-slide-content">';
+      texts.forEach(t => { html += t.length < 50 ? '<p class="ppt-title">' + t + '</p>' : '<p>' + t + '</p>'; });
+      html += '</div></div>';
     }
+
+    mdContent.innerHTML = html;
+    var wrapper = document.createElement('div');
+    wrapper.style.cssText = 'margin-bottom:16px;padding:12px;background:var(--bg);border:1px solid var(--accent);border-radius:8px';
+    var fullBtn = document.createElement('button');
+    fullBtn.textContent = '完整渲染';
+    fullBtn.style.cssText = 'width:100%;padding:10px 20px;border:none;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;font-size:15px;font-weight:600';
+    var desc = document.createElement('div');
+    desc.style.cssText = 'font-size:12px;color:var(--text-secondary);margin-top:6px;text-align:center';
+    desc.textContent = '包含图片、表格等完整内容';
+    wrapper.appendChild(fullBtn);
+    wrapper.appendChild(desc);
+    mdContent.insertBefore(wrapper, mdContent.firstChild);
+    showToast('已打开 (文本模式): ' + state.fileName);
+    reapplyZoom();
+
+    fullBtn.addEventListener('click', function() {
+      fullBtn.disabled = true; fullBtn.textContent = '渲染中...'; fullBtn.style.opacity = '0.6';
+      renderPptxFull(arrayBuffer).catch(function(e) {
+        hideLoading(); mdContent.style.display = 'block'; if (fullBtn) { fullBtn.disabled = false; fullBtn.textContent = '完整渲染'; fullBtn.style.opacity = '1'; } _d('renderPptxFull error: ' + (e && e.message || e));
+      });
+      _d('fullRenderBtn clicked, renderPptxFull started');
+    });
+  } catch (e) {
+    hideLoading();
+    mdContent.style.display = 'block';
+    mdContent.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><h2>解析失败</h2><p>' + escapeHtml(e.message || '无法解析 PPT 文档') + '</p></div>';
+    showToast('PPT 解析失败');
+    reapplyZoom();
+  }
+}
+
+// ===== Full PPT render (Canvas-based, on demand) =====
+async function renderPptxFull(arrayBuffer) {
+  showLoading('正在准备完整渲染...', true);
+  var mySeq = ++_opSeq;
+  activeOp.seq = mySeq;
+  var pptTimeout = setTimeout(function() {
+    try { activeOp.aborted = true; hideLoading(); showToast('渲染超时'); mdContent.style.display = 'block'; mdContent.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><h2>渲染超时</h2><p>幻灯片文件过大或格式复杂，请重试或使用其他工具查看</p></div>'; } catch(e) {}
+  }, 60000);
+  try {
+    if (typeof Chart === 'undefined') {
+      await loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js');
+      if (activeOp.aborted || activeOp.seq !== mySeq) return;
+    }
+    if (typeof JSZip === 'undefined') {
+      await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+      if (activeOp.aborted || activeOp.seq !== mySeq) return;
+    }
+    if (typeof PptxViewJS === 'undefined') {
+      await loadScript('https://cdn.jsdelivr.net/npm/pptxviewjs@1.1.9/dist/PptxViewJS.min.js');
+      if (activeOp.aborted || activeOp.seq !== mySeq) return;
+    }
+    showContent();
+    mdContent.style.display = 'block';
+    mdContent.style.overflowX = 'auto';
+
+    var canvas = document.createElement('canvas');
+    canvas.width = 1280;
+    canvas.height = 720;
+    canvas.style.display = 'none';
+    document.body.appendChild(canvas);
+    try {
+      var viewer = new PptxViewJS.PPTXViewer({ canvas: canvas, autoRenderFirstSlide: false });
+      await viewer.loadFile(arrayBuffer.slice(0));
+      var total = viewer.getSlideCount();
+      var html = '<div style="margin-bottom:16px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px"><button id="textModeBtn" style="width:100%;padding:10px 20px;border:none;border-radius:6px;background:var(--bg-card);color:var(--text);cursor:pointer;font-size:15px;font-weight:600;border:1px solid var(--border)">文本模式</button><div style="font-size:12px;color:var(--text-secondary);margin-top:6px;text-align:center">仅显示文字内容，速度更快</div></div><div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">共 ' + total + ' 张幻灯片</div>';
+      for (var i = 0; i < total; i++) {
+        if (activeOp.aborted || activeOp.seq !== mySeq) break;
+        if (i > 0) { showLoading('正在渲染第 ' + (i + 1) + '/' + total + ' 张幻灯片...', true); await new Promise(function(r) { setTimeout(r, 0); }); if (activeOp.aborted || activeOp.seq !== mySeq) break; }
+        await viewer.render(canvas, { slideIndex: i });
+        html += '<div class="ppt-slide"><div class="ppt-slide-num">幻灯片 ' + (i + 1) + '</div><div class="ppt-slide-content" style="text-align:center;padding:0"><img src="' + canvas.toDataURL('image/png') + '" style="max-width:100%;height:auto;display:block;border:1px solid var(--border);border-radius:4px;margin:0 auto" alt="Slide ' + (i + 1) + '"></div></div>';
+      }
+      if (!activeOp.aborted && activeOp.seq === mySeq) {
+        showContent();
+        mdContent.style.display = 'block';
+        mdContent.innerHTML = html;
+        var textBtn = document.getElementById('textModeBtn');
+        if (textBtn) textBtn.onclick = function() { renderPptx(arrayBuffer); };
+        showToast('已渲染: ' + state.fileName);
+        reapplyZoom();
+      }
+    } finally {
+      if (canvas.parentNode) document.body.removeChild(canvas);
+    }
+  } finally {
+    clearTimeout(pptTimeout);
   }
 }
 
@@ -3376,6 +3573,12 @@ function navigateDoc(dir) {
   try { localStorage.setItem('reader-last-session', JSON.stringify({ name: f.name, type: state.fileType, ext: state.fileExt, timestamp: Date.now() })); } catch(e) {}
   if (state.fileType === 'img') { buildImageList(null).then(renderContent); }
   else renderContent();
+  // For PDF in multi-file mode, keep action strip visible for navigation
+  if (state.fileType === 'pdf' && state.importedFiles.length > 1) { showActionStrip(true); }
+  // Save content to IndexedDB for session restore on next app launch
+  if (state.fileContent) {
+    dbPut('files', { name: f.name, content: state.fileContent, type: state.fileType, updatedAt: Date.now() }).catch(() => {});
+  }
   updateDocNav();
 }
 
@@ -4048,16 +4251,62 @@ async function extractHtmlFromDocx(arrayBuffer) {
   }
   const zip = await JSZip.loadAsync(arrayBuffer);
   const mhtFile = zip.file('word/afchunk.mht');
-  if (!mhtFile) return null;
-  let mht = await mhtFile.async('string');
-  // Find the text/html part inside the multipart MHT
-  const bodyMatch = mht.match(/Content-Type:\s*text\/html[\s\S]*?(?:\r?\n){2,}([\s\S]*?)(?:\r?\n)------=mhtDocumentPart/);
-  if (!bodyMatch) return null;
-  let html = bodyMatch[1];
-  // Decode quoted-printable: =XX → character, =\r?\n → soft line break (remove)
-  html = html.replace(/=([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
-  html = html.replace(/=\r?\n/g, '');
-  return html;
+  if (!mhtFile) { _d('[MHT] word/afchunk.mht not found'); return null; }
+  let raw = await mhtFile.async('string');
+  _d('[MHT] raw MHT length=' + raw.length);
+
+  // Split MHT into parts by boundary
+  var boundaryMatch = raw.match(/boundary="?([^";\r\n]+)"?/);
+  if (!boundaryMatch) { _d('[MHT] no boundary found'); return null; }
+  var boundary = boundaryMatch[1];
+  _d('[MHT] boundary=' + boundary);
+
+  var parts = raw.split('--' + boundary);
+  var htmlPart = null;
+  var cidMap = {};
+
+  for (var i = 0; i < parts.length; i++) {
+    var part = parts[i];
+    if (part.trim() === '' || part.trim() === '--') continue;
+    var cidMatch = part.match(/Content-ID:\s*<?([^>\r\n]+)>?/i);
+    var locMatch = part.match(/Content-Location:\s*(\S+)/i);
+
+    if (/Content-Type:\s*text\/html/i.test(part)) {
+      var hEnd = part.indexOf('\r\n\r\n');
+      if (hEnd < 0) hEnd = part.indexOf('\n\n');
+      if (hEnd >= 0) {
+        htmlPart = part.substring(hEnd).trim();
+        htmlPart = htmlPart.replace(/=([0-9A-Fa-f]{2})/g, function(_, h) { return String.fromCharCode(parseInt(h, 16)); });
+        htmlPart = htmlPart.replace(/=\r?\n/g, '');
+        _d('[MHT] HTML part length=' + htmlPart.length);
+      }
+    } else if (/Content-Type:\s*image\//i.test(part)) {
+      var hEnd = part.indexOf('\r\n\r\n');
+      if (hEnd < 0) hEnd = part.indexOf('\n\n');
+      if (hEnd >= 0) {
+        var imgData = part.substring(hEnd).trim().replace(/=\r?\n/g, '');
+        var contentType = 'image/png';
+        var ctMatch = part.match(/Content-Type:\s*(image\/[^\s;]+)/i);
+        if (ctMatch) contentType = ctMatch[1];
+        var dataUrl = 'data:' + contentType + ';base64,' + imgData;
+        if (cidMatch) cidMap[cidMatch[1]] = dataUrl;
+        if (locMatch) cidMap[locMatch[1]] = dataUrl;
+        _d('[MHT] image: type=' + contentType + ' cid=' + (cidMatch ? cidMatch[1] : 'none'));
+      }
+    }
+  }
+
+  if (!htmlPart) { _d('[MHT] no HTML part found'); return null; }
+
+  // Replace cid: and file:/// references with data URLs
+  var keys = Object.keys(cidMap);
+  _d('[MHT] replacing ' + keys.length + ' cid references');
+  for (var j = 0; j < keys.length; j++) {
+    htmlPart = htmlPart.split(keys[j]).join(cidMap[keys[j]]);
+  }
+
+  _d('[MHT] final HTML length=' + htmlPart.length);
+  return htmlPart;
 }
 
 // ===== KaTeX CSS cache (fetched once from CDN for export) =====
@@ -4192,11 +4441,25 @@ async function exportAsImage(mode) {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast(`已导出 ${sections.length} 张分段截图`);
+  } else if (mode === 'pdf') {
+    // Export as PDF via browser print dialog
+    const printWin = window.open('', '_blank');
+    if (!printWin) { showToast('弹窗被阻止，请允许弹窗后重试'); return; }
+    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]')).map(el => el.outerHTML).join('\n');
+    printWin.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${state.fileName || '导出'}</title>${styles}<style>body{font-family:-apple-system,sans-serif;max-width:800px;margin:0 auto;padding:20px;color:#333;line-height:1.7}img{max-width:100%;height:auto}@media print{body{padding:0}}</style></head><body>${target.innerHTML}</body></html>`);
+    printWin.document.close();
+    printWin.onload = function() {
+      printWin.print();
+      // Don't close — let user save as PDF from print dialog
+    };
+    showToast('请在打印对话框中选择"另存为 PDF"');
   }
 }
 
 // ===== Save Sheet =====
 function showSaveSheet() {
+  const isTable = state.fileType === 'xlsx' || state.fileType === 'csv' || state.fileType === 'xls' || state.fileType === 'et';
+  const csvBtn = isTable ? `<button class="theme-opt save-opt" data-ext=".csv" data-mime="text/csv">📊 CSV</button>` : '';
   const html = `
     <div class="sheet-handle"></div>
     <div class="sheet-title">💾 另存为</div>
@@ -4206,16 +4469,17 @@ function showSaveSheet() {
         <button class="theme-opt save-opt" data-ext=".txt" data-mime="text/plain">📄 纯文本</button>
         <button class="theme-opt save-opt" data-ext=".md" data-mime="text/markdown">📝 Markdown</button>
         <button class="theme-opt save-opt" data-ext=".html" data-mime="text/html">🌐 HTML</button>
-        <button class="theme-opt save-opt" data-ext=".csv" data-mime="text/csv">📊 CSV</button>
+        ${csvBtn}
         <button class="theme-opt save-opt" data-ext=".doc" data-mime="application/msword">📘 Word</button>
         <button class="theme-opt save-opt" data-ext=".docx" data-mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document">📗 Word (.docx)</button>
       </div>
     </div>
     <div class="sheet-group">
-      <div class="sheet-label">图片格式</div>
+      <div class="sheet-label">图片/导出</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
         <button class="theme-opt img-export" data-mode="full-png">🖼️ PNG 截图</button>
         <button class="theme-opt img-export" data-mode="full-svg">🎨 SVG 矢量</button>
+        <button class="theme-opt img-export" data-mode="pdf">📕 导出 PDF</button>
         <button class="theme-opt img-export" data-mode="sections">📑 按标题分段</button>
       </div>
     </div>`;
@@ -4442,17 +4706,13 @@ function isBinaryType(type) { return BINARY_EXTS.has(type); }
 
 // Read a File/FileAPI descriptor and return content (ArrayBuffer for binary, decoded text for others)
 async function readFileBlob(file, binary) {
-  if (file._path || file.path && !file._file) {
-    return binary ? await FileAPI.readAsArrayBuffer(file) : await FileAPI.readAsText(file);
+  if (binary) return await FileAPI.readAsArrayBuffer(file);
+  try {
+    return await FileAPI.readAsText(file);
+  } catch(e) {
+    const arr = await FileAPI.readAsArrayBuffer(file);
+    return decodeText(arr);
   }
-  const buf = await new Promise((r, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => r(fr.result);
-    fr.onerror = () => reject(new Error('读取失败'));
-    fr.readAsArrayBuffer(file._file || file);
-  });
-  if (binary) return buf;
-  return decodeText(buf);
 }
 
 let _dropHideTimer = null;
@@ -4568,10 +4828,12 @@ async function handleDropItems(dt) {
 }
 
 function openImportedFile(idx) {
+  try {
   const f = state.importedFiles[idx];
   if (!f) return;
   if (f.content === null || f.content === undefined) { showToast('文件内容为空'); return; }
-  resetAbort();
+  activeOp.seq = ++_opSeq;
+  activeOp.aborted = true;
   let content = f.content;
   if (content instanceof Uint8Array) content = content.buffer;
   state.fileContent = content;
@@ -4591,7 +4853,14 @@ function openImportedFile(idx) {
     else renderContent();
   }
   try { localStorage.setItem('reader-last-session', JSON.stringify({ name: f.name, type: state.fileType, ext: state.fileExt, timestamp: Date.now() })); } catch(e) {}
+  // For PDF in multi-file mode, keep action strip visible for navigation
+  if (state.fileType === 'pdf' && state.importedFiles.length > 1) { showActionStrip(true); }
+  // Save content to IndexedDB for session restore on next app launch
+  if (state.fileContent) {
+    dbPut('files', { name: f.name, content: state.fileContent, type: state.fileType, updatedAt: Date.now() }).catch(() => {});
+  }
   updateDocNav();
+  } catch(e) { _d('openImportedFile error: ' + (e && e.message || e)); showToast('打开文件失败: ' + (e && e.message || e)); }
 }
 
 function getFileIcon(type) {
@@ -4932,7 +5201,7 @@ function deselectText() {
   }
 }
 
-function startDraw(e) {
+async function startDraw(e) {
   if (!drawOverlay.classList.contains('active')) return;
   e.preventDefault();
   const cr = contentArea.getBoundingClientRect();
@@ -4955,7 +5224,7 @@ function startDraw(e) {
   deselectText();
   // Text mode: create new
   if (drawMode === 'text') {
-    const text = prompt('输入标注文字:', '');
+    const text = await showPromptDialog({ title: '输入标注文字', placeholder: '', defaultValue: '' });
     if (text && text.trim()) {
       const fontSize = drawWidth * 3 + 10;
       drawings.push({ type: 'text', x: docX, y: docY, content: text.trim(), color: drawColor, fontSize });
@@ -5083,12 +5352,12 @@ function toggleDrawVisibility() {
 function hideCursor() { drawCursor.style.display = 'none'; }
 
 // Text editing helpers
-function editSelectedText() {
+async function editSelectedText() {
   if (selectedDrawIdx < 0) return;
   const t = drawings[selectedDrawIdx];
   if (t.type !== 'text') return;
-  const newText = prompt('编辑文字:', t.content);
-  if (newText !== null && newText.trim()) {
+  const newText = await showPromptDialog({ title: '编辑文字', placeholder: '', defaultValue: t.content });
+  if (newText && newText.trim()) {
     t.content = newText.trim();
     saveDrawSnapshot();
     redrawDrawings(true);
@@ -5845,7 +6114,7 @@ $('menuBtn').addEventListener('click', showMenuSheet);
 function showMenuSheet() {
   const hasContent = !!state.fileContent;
   const hasHeadings = hasContent && (state.fileType === 'md' || state.fileType === 'docx') && mdContent.querySelectorAll('h1,h2,h3,h4,h5,h6').length > 0;
-  const hasSheets = hasContent && state.fileType === 'xlsx' && document.querySelectorAll('.xlsx-sheet-tab').length > 0;
+  const hasSheets = hasContent && state.fileType === 'xlsx' && mdContent.querySelectorAll('.xlsx-sheet-tab').length > 0;
   const files = state.importedFiles;
   const html = `
     <div class="sheet-handle"></div>
@@ -5858,10 +6127,12 @@ function showMenuSheet() {
         ${hasHeadings ? `<button class="theme-opt menu-act" data-act="outline">📑 文档大纲</button>` : ''}
         ${hasSheets ? `<button class="theme-opt menu-act" data-act="sheets">📊 切换工作表</button>` : ''}
         <button class="theme-opt menu-act" data-act="url">🌐 浏览网址</button>
+        <button class="theme-opt menu-act" data-act="debug">🔧 调试日志</button>
         ` : `
         <button class="theme-opt menu-act" data-act="about">ℹ️ 关于</button>
         <button class="theme-opt menu-act" data-act="url">🌐 浏览网址</button>
         <button class="theme-opt menu-act" data-act="open">📂 打开文件</button>
+        <button class="theme-opt menu-act" data-act="debug">🔧 调试日志</button>
         `}
       </div>
     </div>
@@ -5893,6 +6164,7 @@ function showMenuSheet() {
         else if (act === 'url') browseUrl();
         else if (act === 'open') FileAPI.pickFiles(ACCEPT_EXTS).then(async fds => { if (fds && fds.length) { for (const fd of fds) await loadFile(fd); } });
         else if (act === 'about') showAboutDialog();
+        else if (act === 'debug') _toggleDiag();
       });
     });
     document.querySelectorAll('.file-list-item').forEach(el => {
@@ -5955,13 +6227,13 @@ function showWordOutline() {
 }
 
 function showSheetSwitcher() {
-  const tabs = document.querySelectorAll('.xlsx-sheet-tab');
+  const tabs = mdContent.querySelectorAll('.xlsx-sheet-tab');
   if (!tabs.length) { showToast('没有可切换的工作表'); return; }
   let items = '';
   tabs.forEach((tab, i) => {
     const name = tab.textContent;
     const active = tab.classList.contains('active');
-    items += `<div style="padding:10px 14px;border-radius:var(--radius-sm);cursor:pointer;display:flex;align-items:center;gap:8px;${active ? 'background:var(--primary-light);color:var(--primary);font-weight:600' : 'color:var(--text)'};-webkit-tap-highlight-color:transparent" data-idx="${tab.dataset.idx}">
+    items += `<div style="padding:10px 14px;border-radius:var(--radius-sm);cursor:pointer;display:flex;align-items:center;gap:8px;${active ? 'background:var(--primary-light);color:var(--primary);font-weight:600' : 'color:var(--text)'};-webkit-tap-highlight-color:transparent" data-sidx="${tab.dataset.idx}">
       <span>${active ? '✓' : '📄'}</span><span>${escapeHtml(name)}</span></div>`;
   });
   const html = `
@@ -5970,12 +6242,14 @@ function showSheetSwitcher() {
     <div class="sheet-group">${items}</div>`;
   openSheet(html);
   setTimeout(() => {
-    document.querySelector(`[data-idx]`).parentElement.querySelectorAll('[data-idx]').forEach(el => {
+    document.querySelectorAll('[data-sidx]').forEach(el => {
       el.addEventListener('click', () => {
         closeSheet();
-        const idx = el.dataset.idx;
-        const tab = document.querySelector(`.xlsx-sheet-tab[data-idx="${idx}"]`);
-        if (tab) tab.click();
+        const idx = el.dataset.sidx;
+        const tab = mdContent.querySelector(`.xlsx-sheet-tab[data-idx="${idx}"]`);
+        if (tab) {
+          setTimeout(() => tab.click(), 100);
+        }
       });
     });
   }, 50);
@@ -6024,8 +6298,7 @@ function showFileInfo() {
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.shiftKey && (e.key === 'd' || e.key === 'D')) {
     e.preventDefault();
-    const el = document.getElementById('debugPanel');
-    if (el) { if (el.classList.contains('show')) _clearDiag(); else _showDiag(); }
+    _toggleDiag();
   }
   if (e.ctrlKey && e.key === 'o') {
     e.preventDefault();
@@ -6096,8 +6369,28 @@ console.log('💡 支持 MD/HTML/TXT/PDF/Word/Excel/PPT/CSV/JSON/XML/YAML/代码
 console.log('📂 点击右上角按钮或按 Ctrl+O 打开文件');
 console.log('📋 支持粘贴文件');
 var _diag = [];
-function _d(m) { _diag.push(m); var el = document.getElementById('debugPanel'); if (el) { el.textContent = _diag.join('\n'); } }
-function _showDiag() { var el = document.getElementById('debugPanel'); if (el) el.classList.add('show'); }
+function _d(m) { _diag.push(m); }
+function _showDiag() {
+  var el = document.getElementById('debugPanel');
+  if (el) {
+    el.textContent = _diag.join('\n');
+    el.classList.add('show');
+    el.onclick = function() {
+      var text = el.textContent;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text);
+      } else {
+        var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+      }
+      el.textContent = '✅ 已复制到剪贴板\n' + text;
+    };
+  }
+}
+function _toggleDiag() {
+  var el = document.getElementById('debugPanel');
+  if (el && el.classList.contains('show')) { _clearDiag(); }
+  else { _showDiag(); }
+}
 function _clearDiag() { _diag = []; var el = document.getElementById('debugPanel'); if (el) el.classList.remove('show'); }
 _d('[STARTUP] BUILD=' + __BUILD_ID__);
 // Update buildId display with app version

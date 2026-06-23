@@ -3,3 +3,6 @@ src-tauri/target/
 .DS_Store
 Thumbs.db
 src-tauri/.cargo/config.toml
+test-files/
+public/test-files/
+*-backup-*.zip
